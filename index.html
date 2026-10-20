@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이거어디버려</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .accordion-content { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, padding 0.3s ease-in-out; max-height: 0; opacity: 0; overflow: hidden; }
+        .accordion-content.open { max-height: 300px; opacity: 1; padding-bottom: 1rem; }
+        .accordion-icon { transition: transform 0.3s ease; }
+        .accordion-icon.open { transform: rotate(180deg); }
+        #reasonModal, #alertModal { transition: opacity 0.2s ease-in-out; }
+        #reasonModal .modal-content, #alertModal .modal-content { transition: transform 0.2s ease-in-out; transform: scale(0.95); }
+        #reasonModal:not(.hidden) .modal-content, #alertModal:not(.hidden) .modal-content { transform: scale(1); }
+        #cameraStream { object-fit: cover; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex justify-center">
+
+    <div class="w-full max-w-md bg-white min-h-screen shadow-xl relative overflow-hidden flex flex-col">
+        <header class="p-6 bg-green-500 text-white rounded-b-3xl shadow-md">
+            <h1 class="text-2xl font-bold text-center tracking-tight">이거어디버려 ♻️</h1>
+            <p class="text-center text-green-100 text-sm mt-1">찍거나 검색하면, AI가 알려드려요!</p>
+        </header>
+
+        <main class="flex-1 p-5 overflow-y-auto pb-24">
+            <!-- API 키 입력부가 제거되었습니다. (Vercel 환경변수에서 처리) -->
+            
+            <section class="mb-8">
+                <h2 class="text-xl font-bold mb-4">무엇을 버리시나요?</h2>
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <input type="text" id="searchInput" placeholder="예: 스팸 뚜껑, 컵라면" 
+                            class="w-full pl-4 pr-10 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent shadow-sm">
+                    </div>
+                    <button id="uploadBtn" class="bg-gray-100 text-gray-600 p-3 rounded-xl hover:bg-gray-200 transition shadow-sm flex-shrink-0" aria-label="사진 업로드">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </button>
+                    <button id="startCameraBtn" class="bg-green-100 text-green-600 p-3 rounded-xl hover:bg-green-200 transition shadow-sm flex-shrink-0" aria-label="사진 촬영">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                    <input type="file" id="imageInput" accept="image/*" class="hidden">
+                </div>
+                <button id="searchBtn" class="w-full mt-3 bg-green-500 text-white font-semibold py-3 rounded-xl hover:bg-green-600 transition shadow-sm">
+                    분리수거 방법 찾기
+                </button>
+            </section>
+
+            <div id="loading" class="hidden flex flex-col items-center justify-center py-10">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-green-500"></div>
+                <p class="text-gray-500 mt-3 text-sm font-medium" id="loadingText">AI가 꼼꼼히 분석하고 있어요...</p>
+            </div>
+
+            <section id="resultSection" class="hidden mb-8">
+                <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100 shadow-inner">
+                    <p class="text-sm text-gray-500 mb-1">📸 분석 결과</p>
+                    <h3 id="resultItem" class="text-xl font-bold text-gray-800 mb-4">-</h3>
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">배출 방법</span>
+                        <span id="resultCategory" class="font-bold text-lg text-gray-800">-</span>
+                    </div>
+                    <div class="space-y-3 mb-5" id="resultSteps"></div>
+                    <button id="openModalBtn" class="w-full flex items-center justify-center gap-2 bg-white border-2 border-gray-200 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                        왜 이렇게 버려야 할까요?
+                    </button>
+                </div>
+            </section>
+
+            <!-- FAQ 섹션 -->
+            <section>
+                <h2 class="text-xl font-bold mb-4">💡 헷갈리기 쉬운 FAQ</h2>
+                <div class="space-y-3">
+                    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <button class="accordion-btn w-full text-left px-4 py-4 font-semibold text-gray-800 flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition">
+                            <span>Q. 프링글스 통은 종이류인가요?</span>
+                            <svg class="accordion-icon h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                        </button>
+                        <div class="accordion-content px-4 text-gray-600 text-sm">A. 아닙니다. 종이처럼 보이지만 내부에 알루미늄이 코팅되어 있고 바닥은 철재인 '복합재질'이므로 재활용이 불가능합니다. <strong>종량제 봉투(일반쓰레기)</strong>에 버려주세요.</div>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <button class="accordion-btn w-full text-left px-4 py-4 font-semibold text-gray-800 flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition">
+                            <span>Q. 깨진 유리는 어떻게 버리나요?</span>
+                            <svg class="accordion-icon h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                        </button>
+                        <div class="accordion-content px-4 text-gray-600 text-sm">A. 깨진 유리는 재활용이 불가능합니다. 신문지 등으로 여러 번 두껍게 감싼 뒤 <strong>종량제 봉투</strong>에 버리거나, <strong>불연성 쓰레기 봉투</strong>를 구매해 배출해야 합니다.</div>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <button class="accordion-btn w-full text-left px-4 py-4 font-semibold text-gray-800 flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition">
+                            <span>Q. 컵라면 용기는 스티로폼으로 버리나요?</span>
+                            <svg class="accordion-icon h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                        </button>
+                        <div class="accordion-content px-4 text-gray-600 text-sm">A. 얼룩이 완전히 제거된 경우에만 스티로폼류로 재활용할 수 있습니다. 붉은 국물 자국이 남아 지워지지 않는다면 <strong>종량제 봉투</strong>에 버려야 합니다.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 모달 UI들 -->
+    <div id="reasonModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl relative">
+            <div class="bg-blue-50 p-4 border-b border-blue-100 flex items-center gap-2"><span class="text-xl">💡</span><h4 class="font-bold text-blue-900">분리수거 원리</h4></div>
+            <div class="p-6"><p id="modalReasonText" class="text-gray-700 leading-relaxed"></p><button id="closeModalBtn" class="mt-6 w-full bg-gray-100 text-gray-800 font-semibold py-2 rounded-xl hover:bg-gray-200 transition">이해했어요</button></div>
+        </div>
+    </div>
+    <div id="alertModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl relative p-6 text-center">
+            <div class="text-red-500 text-4xl mb-4">⚠️</div><h4 class="font-bold text-gray-800 text-lg mb-2" id="alertTitle">알림</h4><div id="alertText" class="text-gray-600 text-xs mb-6 break-all bg-gray-50 p-3 rounded-lg border border-gray-200 max-h-40 overflow-y-auto"></div><button id="closeAlertBtn" class="w-full bg-red-500 text-white font-semibold py-2 rounded-xl hover:bg-red-600 transition">확인</button>
+        </div>
+    </div>
+    <div id="cameraModal" class="hidden fixed inset-0 bg-black z-50 flex flex-col">
+        <div class="flex justify-between items-center p-5 bg-black text-white bg-opacity-80 absolute top-0 w-full z-10"><h4 class="font-bold text-lg drop-shadow-md">물건 촬영하기</h4><button id="closeCameraBtn" class="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div>
+        <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden"><video id="cameraStream" autoplay playsinline class="w-full h-full object-cover"></video><canvas id="cameraCanvas" class="hidden"></canvas><div class="absolute inset-0 border-2 border-white border-opacity-30 m-12 rounded-2xl pointer-events-none"></div></div>
+        <div class="p-8 bg-black flex justify-center pb-12"><button id="captureBtn" class="w-20 h-20 bg-white rounded-full border-4 border-gray-400 hover:bg-gray-200 transition shadow-[0_0_15px_rgba(255,255,255,0.5)]"></button></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('searchInput');
+            const searchBtn = document.getElementById('searchBtn');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const startCameraBtn = document.getElementById('startCameraBtn');
+            const imageInput = document.getElementById('imageInput');
+            const loading = document.getElementById('loading');
+            const resultSection = document.getElementById('resultSection');
+            
+            // UI 요소
+            const resultItem = document.getElementById('resultItem');
+            const resultCategory = document.getElementById('resultCategory');
+            const resultSteps = document.getElementById('resultSteps');
+            const modalReasonText = document.getElementById('modalReasonText');
+            
+            function showAlert(title, message) {
+                document.getElementById('alertTitle').textContent = title;
+                document.getElementById('alertText').textContent = message;
+                document.getElementById('alertModal').classList.remove('hidden');
+            }
+            document.getElementById('closeAlertBtn').addEventListener('click', () => document.getElementById('alertModal').classList.add('hidden'));
+
+            // 아코디언 로직
+            const accordions = document.querySelectorAll('.accordion-btn');
+            accordions.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const content = this.nextElementSibling;
+                    const icon = this.querySelector('.accordion-icon');
+                    accordions.forEach(otherBtn => {
+                        if (otherBtn !== this) {
+                            otherBtn.nextElementSibling.classList.remove('open');
+                            otherBtn.querySelector('.accordion-icon').classList.remove('open');
+                        }
+                    });
+                    content.classList.toggle('open');
+                    icon.classList.toggle('open');
+                });
+            });
+
+            // 모달 로직
+            document.getElementById('openModalBtn').addEventListener('click', () => document.getElementById('reasonModal').classList.remove('hidden'));
+            document.getElementById('closeModalBtn').addEventListener('click', () => document.getElementById('reasonModal').classList.add('hidden'));
+
+            // 이벤트 리스너들
+            uploadBtn.addEventListener('click', () => imageInput.click());
+            imageInput.addEventListener('change', (e) => {
+                if(e.target.files.length > 0) analyzeWaste(null, e.target.files[0]);
+            });
+            searchBtn.addEventListener('click', () => {
+                const query = searchInput.value.trim();
+                if(query) analyzeWaste(query, null);
+                else showAlert("입력 오류", "버리려는 물건의 이름을 입력해주세요.");
+            });
+            searchInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') searchBtn.click(); });
+
+            // 카메라 로직
+            let videoStream = null;
+            async function startCamera() {
+                try {
+                    videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    document.getElementById('cameraStream').srcObject = videoStream;
+                    document.getElementById('cameraModal').classList.remove('hidden');
+                } catch (err) { showAlert("카메라 오류", "카메라에 접근할 수 없습니다."); }
+            }
+            function stopCamera() {
+                if (videoStream) { videoStream.getTracks().forEach(track => track.stop()); videoStream = null; }
+                document.getElementById('cameraModal').classList.add('hidden');
+            }
+            startCameraBtn.addEventListener('click', startCamera);
+            document.getElementById('closeCameraBtn').addEventListener('click', stopCamera);
+            document.getElementById('captureBtn').addEventListener('click', () => {
+                if (!videoStream) return;
+                const canvas = document.getElementById('cameraCanvas');
+                const stream = document.getElementById('cameraStream');
+                canvas.width = stream.videoWidth; canvas.height = stream.videoHeight;
+                canvas.getContext('2d').drawImage(stream, 0, 0);
+                canvas.toBlob((blob) => {
+                    stopCamera();
+                    analyzeWaste(null, new File([blob], "capture.jpg", { type: "image/jpeg" }));
+                }, 'image/jpeg', 0.8);
+            });
+
+            // 이미지 압축 (용량 최적화)
+            function compressImage(file) {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = event => {
+                        const img = new Image();
+                        img.src = event.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let w = img.width, h = img.height;
+                            if (w > 800) { h = Math.round(h * 800 / w); w = 800; }
+                            canvas.width = w; canvas.height = h;
+                            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                            resolve(canvas.toDataURL('image/jpeg', 0.7));
+                        };
+                    };
+                });
+            }
+
+            // Vercel Serverless Function 호출
+            async function analyzeWaste(textQuery, imageFile) {
+                resultSection.classList.add('hidden');
+                loading.classList.remove('hidden');
+                
+                try {
+                    let imageBase64 = null;
+                    if (imageFile) {
+                        searchInput.value = '📷 사진 분석 중...';
+                        const compressedBase64 = await compressImage(imageFile);
+                        imageBase64 = compressedBase64.replace(/^data:image\/\w+;base64,/, '');
+                    }
+
+                    // 👉 프론트엔드는 이제 직접 구글 API를 호출하지 않고 '/api/generate' 엔드포인트로 요청을 보냅니다.
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ textQuery, imageBase64 })
+                    });
+
+                    const responseData = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(responseData.error || '서버 오류가 발생했습니다.');
+                    }
+                    if (!responseData.candidates || responseData.candidates.length === 0) {
+                        throw new Error("AI 응답을 받아오지 못했습니다.");
+                    }
+
+                    const resultText = responseData.candidates[0].content.parts[0].text;
+                    let cleanedText = resultText.trim();
+                    const jsonMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+                    if (jsonMatch) cleanedText = jsonMatch[1].trim();
+                    
+                    displayResult(JSON.parse(cleanedText));
+
+                } catch (error) {
+                    console.error(error);
+                    showAlert("오류 발생", error.message);
+                } finally {
+                    loading.classList.add('hidden');
+                }
+            }
+
+            function displayResult(data) {
+                resultItem.textContent = data.item || "이름 알 수 없음";
+                resultCategory.textContent = data.category || "분류 불가";
+                resultSteps.innerHTML = '';
+                if (data.steps) {
+                    data.steps.forEach((step, index) => {
+                        resultSteps.innerHTML += `
+                            <div class="flex items-start gap-3 bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                                <div class="bg-green-100 text-green-700 w-6 h-6 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 mt-0.5">${index + 1}</div>
+                                <p class="text-sm text-gray-700 leading-snug">${step}</p>
+                            </div>
+                        `;
+                    });
+                }
+                modalReasonText.innerHTML = `<strong>${data.item}</strong>의 올바른 분리수거 이유:<br><br>${data.reason}`;
+                resultSection.classList.remove('hidden');
+                resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+    </script>
+</body>
+</html>
