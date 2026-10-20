@@ -1,7 +1,3 @@
-export const config = {
-  maxDuration: 60, // 무료 티어의 최대 응답 허용 시간
-};
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST 메서드만 지원합니다.' });
